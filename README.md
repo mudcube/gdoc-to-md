@@ -15,15 +15,28 @@ Convert Google Drive files to local formats:
 
 ## ⚙️ Requirements
 
+- Node.js >= 14.0.0
+- Python 3.x with pip
 - `credentials.json` (Google API OAuth credentials)
 - Pandoc (for DOCX → Markdown conversion)
-- Python packages: `google-auth`, `google-api-python-client`
 
 ## 🛠️ Setup
 
-1. **Install Python Dependencies**:
+### NPM Installation (Recommended)
+
+```bash
+npm install -g @mudcube/gdrive-to-md
+```
+
+This will automatically install Python dependencies during installation.
+
+### Manual Installation
+
+1. **Clone Repository**:
    ```bash
-   pip install -r requirements.txt
+   git clone https://github.com/mudcube/gdrive-to-md.git
+   cd gdrive-to-md
+   npm install
    ```
 
 2. **Install Pandoc**:
@@ -43,13 +56,20 @@ Convert Google Drive files to local formats:
    - Enable Google Drive API
    - Create OAuth client ID (Desktop app)
    - Download credentials as `credentials.json`
-   - Place in same directory as script
+   - Place in your working directory
 
 ## 📋 Usage
 
 ### Basic Usage
 
 ```bash
+# If installed via npm
+gdrive-to-md /path/to/google/drive/files
+
+# If running locally
+npm run gdrive-to-md /path/to/google/drive/files
+
+# Or using Python directly
 python gdrive_to_md.py /path/to/google/drive/files
 ```
 
@@ -62,22 +82,22 @@ On first run, the script will:
 
 ```bash
 # Process only Google Docs
-python gdrive_to_md.py --gdoc-only /path/to/files
+gdrive-to-md --gdoc-only /path/to/files
 
-# Process only Google Sheets
-python gdrive_to_md.py --gsheet-only /path/to/files
+# Process only Google Sheets  
+gdrive-to-md --gsheet-only /path/to/files
 
 # Skip already converted files
-python gdrive_to_md.py --skip-existing /path/to/files
+gdrive-to-md --skip-existing /path/to/files
 
 # Keep intermediate DOCX files
-python gdrive_to_md.py --keep-intermediates /path/to/files
+gdrive-to-md --keep-intermediates /path/to/files
 
 # Preview without converting (dry run)
-python gdrive_to_md.py --dry-run /path/to/files
+gdrive-to-md --dry-run /path/to/files
 
 # Process only first 5 files
-python gdrive_to_md.py --limit 5 /path/to/files
+gdrive-to-md --limit 5 /path/to/files
 ```
 
 ## 📂 Output Format
@@ -107,3 +127,14 @@ Exported directly as CSV format, preserving data and structure.
 - No content is sent to external servers
 - Authentication token stored locally as `token.pickle`
 - Access can be revoked anytime in Google Account settings
+- **IMPORTANT**: Never commit `credentials.json` or `token.pickle` to version control
+- The `.npmignore` file ensures credentials are not included when publishing to npm
+
+## 📦 Publishing to NPM
+
+The package is configured to exclude all sensitive files:
+- `credentials.json` - Your Google API credentials
+- `token.pickle` - Your authentication token
+- Test files and development artifacts
+
+Users will need to provide their own `credentials.json` file after installation.

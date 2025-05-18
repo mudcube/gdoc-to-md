@@ -1,0 +1,29 @@
+# Google API credentials - NEVER publish these!
+credentials.json
+token.pickle
+
+# Test files
+test_input/
+__pycache__/
+*.pyc
+
+# Intermediate files
+intermediates/
+*.docx
+
+# Development files
+.env
+.git/
+.gitignore
+CLAUDE.md
+
+# IDE files
+.vscode/
+.idea/
+
+# Node modules (if any)
+node_modules/
+
+# Other
+.DS_Store
+*.log

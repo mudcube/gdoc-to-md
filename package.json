@@ -1,31 +1,32 @@
 {
-  "name": "gdoc-to-md",
+  "name": "@mudcube/gdrive-to-md",
   "version": "1.0.0",
-  "description": "Convert Google Drive documents to Markdown and CSV formats",
+  "description": "Convert Google Drive files (Docs to Markdown, Sheets to CSV) using Google Drive API and Pandoc",
   "main": "index.js",
   "bin": {
-    "gdoc-to-md": "./bin/gdoc-to-md.js"
+    "gdrive-to-md": "./bin/gdrive-to-md.js"
   },
   "scripts": {
+    "postinstall": "pip install -r requirements.txt",
     "test": "jest",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit"
   },
   "keywords": [
     "google-drive",
+    "google-docs",
+    "google-sheets",
     "markdown",
     "csv",
     "converter",
     "gdoc",
-    "gsheet",
-    "export"
+    "gsheet"
   ],
-  "author": "",
+  "author": "mudcube",
   "license": "MIT",
   "dependencies": {
-    "commander": "^9.4.0",
-    "dotenv": "^16.0.3",
-    "ora": "^6.1.2"
+    "python-shell": "^5.0.0",
+    "yargs": "^17.7.2"
   },
   "devDependencies": {
     "@types/node": "^18.0.0",
@@ -38,12 +39,14 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/yourusername/gdoc-to-md.git"
+    "url": "https://github.com/mudcube/gdrive-to-md"
   },
   "files": [
-    "bin",
-    "lib",
-    "python",
-    "README.md"
+    "index.js",
+    "bin/",
+    "gdrive_to_md.py",
+    "requirements.txt",
+    "README.md",
+    "LICENSE"
   ]
 }
