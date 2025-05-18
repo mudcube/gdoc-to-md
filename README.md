@@ -25,7 +25,7 @@ Convert Google Drive files to local formats:
 ### NPM Installation (Recommended)
 
 ```bash
-npm install -g @mudcube/gdrive-to-md
+npm install -g @goobits/gdoc-to-md
 ```
 
 This will automatically install Python dependencies during installation.
@@ -64,10 +64,10 @@ This will automatically install Python dependencies during installation.
 
 ```bash
 # If installed via npm
-gdrive-to-md /path/to/google/drive/files
+gdoc-to-md /path/to/google/drive/files
 
 # If running locally
-npm run gdrive-to-md /path/to/google/drive/files
+npm run gdoc-to-md /path/to/google/drive/files
 
 # Or using Python directly
 python gdrive_to_md.py /path/to/google/drive/files
@@ -82,22 +82,22 @@ On first run, the script will:
 
 ```bash
 # Process only Google Docs
-gdrive-to-md --gdoc-only /path/to/files
+gdoc-to-md --gdoc-only /path/to/files
 
 # Process only Google Sheets  
-gdrive-to-md --gsheet-only /path/to/files
+gdoc-to-md --gsheet-only /path/to/files
 
 # Skip already converted files
-gdrive-to-md --skip-existing /path/to/files
+gdoc-to-md --skip-existing /path/to/files
 
 # Keep intermediate DOCX files
-gdrive-to-md --keep-intermediates /path/to/files
+gdoc-to-md --keep-intermediates /path/to/files
 
 # Preview without converting (dry run)
-gdrive-to-md --dry-run /path/to/files
+gdoc-to-md --dry-run /path/to/files
 
 # Process only first 5 files
-gdrive-to-md --limit 5 /path/to/files
+gdoc-to-md --limit 5 /path/to/files
 ```
 
 ## 📂 Output Format
@@ -132,7 +132,7 @@ Exported directly as CSV format, preserving data and structure.
 
 ## 📦 Publishing to NPM
 
-The package is configured to exclude all sensitive files:
+This package (`@goobits/gdoc-to-md`) is configured to exclude all sensitive files:
 - `credentials.json` - Your Google API credentials
 - `token.pickle` - Your authentication token
 - Test files and development artifacts

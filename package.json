@@ -1,10 +1,10 @@
 {
-  "name": "@mudcube/gdrive-to-md",
+  "name": "@goobits/gdoc-to-md",
   "version": "1.0.0",
   "description": "Convert Google Drive files (Docs to Markdown, Sheets to CSV) using Google Drive API and Pandoc",
   "main": "index.js",
   "bin": {
-    "gdrive-to-md": "./bin/gdrive-to-md.js"
+    "gdoc-to-md": "./bin/gdoc-to-md.js"
   },
   "scripts": {
     "postinstall": "pip install -r requirements.txt",

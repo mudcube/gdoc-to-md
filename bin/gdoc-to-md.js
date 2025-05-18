@@ -1,59 +1,65 @@
 #!/usr/bin/env node
 
-const { spawn } = require('child_process');
-const path = require('path');
-const { Command } = require('commander');
+const yargs = require('yargs/yargs');
+const { hideBin } = require('yargs/helpers');
+const { runGDriveToMd } = require('../index');
 
-const program = new Command();
+// Parse command line arguments
+const argv = yargs(hideBin(process.argv))
+  .usage('Usage: $0 <source_dir> [options]')
+  .positional('source_dir', {
+    describe: 'Source directory containing Google Drive files',
+    type: 'string'
+  })
+  .option('gdoc-only', {
+    describe: 'Process only Google Docs files',
+    type: 'boolean',
+    default: false
+  })
+  .option('gsheet-only', {
+    describe: 'Process only Google Sheets files',
+    type: 'boolean',
+    default: false
+  })
+  .option('skip-existing', {
+    describe: 'Skip files that have already been converted',
+    type: 'boolean',
+    default: false
+  })
+  .option('keep-intermediates', {
+    describe: 'Keep intermediate DOCX files',
+    type: 'boolean',
+    default: false
+  })
+  .option('dry-run', {
+    describe: 'Preview what would be converted without actually converting',
+    type: 'boolean',
+    default: false
+  })
+  .option('limit', {
+    describe: 'Limit the number of files to process',
+    type: 'number'
+  })
+  .demandCommand(1, 'Please provide a source directory')
+  .help()
+  .argv;
 
-program
-  .name('gdoc-to-md')
-  .description('Convert Google Drive documents to Markdown and CSV')
-  .version('1.0.0')
-  .argument('<source_dir>', 'Directory containing .gdoc and .gsheet files')
-  .option('--limit <number>', 'Limit the number of files to process', parseInt)
-  .option('--skip-existing', 'Skip files that already exist')
-  .option('--dry-run', 'Show what would be done without converting')
-  .option('--keep-intermediates', 'Keep intermediate DOCX files')
-  .option('--gdoc-only', 'Process only Google Docs files')
-  .option('--gsheet-only', 'Process only Google Sheets files')
-  .action((sourceDir, options) => {
-    // Build Python script arguments
-    const pythonScript = path.join(__dirname, '..', 'gdrive_to_md.py');
-    const args = [pythonScript, sourceDir];
+// Convert yargs argv to array format for Python script
+const args = [argv._[0]]; // source directory
 
-    if (options.limit) args.push('--limit', options.limit);
-    if (options.skipExisting) args.push('--skip-existing');
-    if (options.dryRun) args.push('--dry-run');
-    if (options.keepIntermediates) args.push('--keep-intermediates');
-    if (options.gdocOnly) args.push('--gdoc-only');
-    if (options.gsheetOnly) args.push('--gsheet-only');
+if (argv.gdocOnly) args.push('--gdoc-only');
+if (argv.gsheetOnly) args.push('--gsheet-only');
+if (argv.skipExisting) args.push('--skip-existing');
+if (argv.keepIntermediates) args.push('--keep-intermediates');
+if (argv.dryRun) args.push('--dry-run');
+if (argv.limit) args.push('--limit', argv.limit.toString());
 
-    // Check for Python
-    const checkPython = spawn('python3', ['--version']);
-    checkPython.on('error', () => {
-      console.error('Error: Python 3 is required but not found in PATH');
-      process.exit(1);
-    });
-
-    checkPython.on('close', (code) => {
-      if (code !== 0) {
-        console.error('Error: Python 3 is required but not found in PATH');
-        process.exit(1);
-      }
-
-      // Run the Python script
-      const python = spawn('python3', args, { stdio: 'inherit' });
-
-      python.on('error', (err) => {
-        console.error('Failed to start Python script:', err);
-        process.exit(1);
-      });
-
-      python.on('close', (code) => {
-        process.exit(code);
-      });
-    });
+// Run the Python script
+runGDriveToMd(args)
+  .then(() => {
+    process.exit(0);
+  })
+  .catch((error) => {
+    console.error('Error:', error);
+    process.exit(1);
   });
-
-program.parse();
