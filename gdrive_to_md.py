@@ -38,6 +38,7 @@ import subprocess
 import pickle
 import datetime
 import re
+import logging
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
 
@@ -50,6 +51,10 @@ from googleapiclient.http import MediaIoBaseDownload
 
 # OAuth 2.0 scopes
 SCOPES = ['https://www.googleapis.com/auth/drive.readonly']
+
+# Set up logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 
 def authenticate() -> Credentials:
@@ -67,9 +72,9 @@ def authenticate() -> Credentials:
             creds.refresh(Request())
         else:
             if not os.path.exists('credentials.json'):
-                print("Error: credentials.json not found.")
-                print("Please download OAuth client credentials from Google Cloud Console")
-                print("and save them as 'credentials.json' in the same directory as this script.")
+                logger.error("credentials.json not found.")
+                logger.error("Please download OAuth client credentials from Google Cloud Console")
+                logger.error("and save them as 'credentials.json' in the same directory as this script.")
                 sys.exit(1)
                 
             flow = InstalledAppFlow.from_client_secrets_file('credentials.json', SCOPES)
@@ -80,96 +85,6 @@ def authenticate() -> Credentials:
             pickle.dump(creds, token)
             
     return creds
-
-
-def _clean_file_content(content: str, debug_mode: bool = False) -> str:
-    """
-    Clean Google Drive file content by removing comments and preserving URLs.
-    
-    Args:
-        content: Raw file content
-        debug_mode: Whether to print debug info
-        
-    Returns:
-        Cleaned content
-    """
-    # Remove any JavaScript-style comments (//...)
-    lines = content.split('\n')
-    clean_lines = [line for line in lines if not line.strip().startswith('//')]
-    
-    # Be careful with handling inline comments - don't split URLs that contain //
-    processed_lines = []
-    for line in clean_lines:
-        # Don't split if the line contains a URL
-        if 'http://' in line or 'https://' in line:
-            processed_lines.append(line)
-        else:
-            # Handle inline comments
-            processed_lines.append(line.split('//')[0])
-            
-    clean_content = '\n'.join(processed_lines)
-    
-    if debug_mode:
-        print(f"Debug - Clean content length: {len(clean_content)}")
-        
-    return clean_content
-
-
-def _extract_document_info(content: str, debug_mode: bool = False) -> Dict:
-    """
-    Extract document information from Google Drive file content.
-    
-    Args:
-        content: Cleaned file content
-        debug_mode: Whether to print debug info
-        
-    Returns:
-        Dictionary with document information
-        
-    Raises:
-        Exception: If document ID cannot be extracted
-    """
-    try:
-        # Try to parse as JSON directly
-        file_content = json.loads(content)
-        if debug_mode:
-            print(f"Debug - Successfully parsed JSON. Keys: {list(file_content.keys())}")
-        return file_content
-    except json.JSONDecodeError as e:
-        if debug_mode:
-            print(f"Debug - JSON parse error: {e}")
-        
-        # If that fails, try to extract the doc_id using regex
-        doc_id_match = re.search(r'"doc_id"\s*:\s*"([^"]+)"', content)
-        url_match = re.search(r'"url"\s*:\s*"([^"]+)"', content)
-        
-        if debug_mode:
-            print(f"Debug - Regex doc_id match: {doc_id_match is not None}")
-            print(f"Debug - Regex url match: {url_match is not None}")
-
-        if doc_id_match:
-            file_content = {
-                'doc_id': doc_id_match.group(1),
-                'url': url_match.group(1) if url_match else ""
-            }
-            if debug_mode:
-                print(f"Debug - Extracted with regex: {file_content}")
-            return file_content
-        else:
-            # Try alternate regex patterns as a last resort
-            doc_id_match = re.search(r'id=([^"&\s]+)', content)
-            if doc_id_match:
-                file_content = {
-                    'doc_id': doc_id_match.group(1),
-                    'url': f"https://docs.google.com/document/d/{doc_id_match.group(1)}/edit"
-                }
-                if debug_mode:
-                    print(f"Debug - Extracted with alt regex: {file_content}")
-                return file_content
-            else:
-                if debug_mode:
-                    print(f"Debug - All regex extraction attempts failed")
-                raise Exception("Could not extract doc_id")
 
 
 def get_gdrive_info(file_path: str) -> Optional[Dict]:
@@ -183,56 +98,26 @@ def get_gdrive_info(file_path: str) -> Optional[Dict]:
         Dictionary containing id, url, name, and type of the document
         or None if extraction fails
     """
-    filename = os.path.basename(file_path)
-    debug_mode = (filename == "Roadmap.gdoc")
-    
-    if debug_mode:
-        print(f"Debug - Processing file: {filename}")
-    
     try:
-        # Read file content
         with open(file_path, 'r') as f:
-            content = f.read()
-        
-        if debug_mode:
-            print(f"Debug - Raw file content length: {len(content)}")
-            print(f"Debug - First 50 chars: {repr(content[:50])}")
-
-        # Process and clean file content
-        clean_content = _clean_file_content(content, debug_mode)
-
-        # Extract document info from content
-        file_content = _extract_document_info(clean_content, debug_mode)
+            data = json.load(f)
             
-        # Get document ID
-        doc_id = file_content.get('doc_id')
-        if not doc_id and 'resourceid' in file_content:
-            doc_id = file_content.get('resourceid')
-            if debug_mode:
-                print(f"Debug - Found resourceid instead of doc_id: {doc_id}")
-        
-        if debug_mode:
-            print(f"Debug - Final doc_id value: {doc_id}")
-            print(f"Debug - File content after processing: {file_content}")
-
+        # Get document ID - Google Drive files should have doc_id or resourceid
+        doc_id = data.get('doc_id') or data.get('resourceid')
+        if not doc_id:
+            return None
+            
         # Determine file type based on extension
-        file_type = ""
-        if file_path.endswith('.gdoc'):
-            file_type = "document"
-        elif file_path.endswith('.gsheet'):
-            file_type = "spreadsheet"
-
+        file_ext = Path(file_path).suffix
+        file_type = "document" if file_ext == '.gdoc' else "spreadsheet"
+        
         return {
             'id': doc_id,
-            'url': file_content.get('url', ''),
-            'name': os.path.splitext(os.path.basename(file_path))[0],
+            'url': data.get('url', ''),
+            'name': Path(file_path).stem,
             'type': file_type
         }
-    except (json.JSONDecodeError, FileNotFoundError) as e:
-        print(f"Error parsing {file_path}: {e}")
-        return None
-    except Exception as e:
-        print(f"Error processing {file_path}: {e}")
+    except (json.JSONDecodeError, FileNotFoundError, KeyError):
         return None
 
 
@@ -251,45 +136,21 @@ def find_gdrive_files(source_dir: str, gdoc_only: bool = False, gsheet_only: boo
     return gdrive_files
 
 
-def export_gdoc_to_docx(service, doc_id: str, output_path: str) -> bool:
-    """Export a Google Document to DOCX format using Drive API."""
+def export_file(service, file_id: str, mime_type: str, output_path: str) -> bool:
+    """Export a Google Drive file to the specified format."""
     try:
-        request = service.files().export_media(
-            fileId=doc_id, 
-            mimeType='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-        )
+        request = service.files().export_media(fileId=file_id, mimeType=mime_type)
         
         with open(output_path, 'wb') as f:
             downloader = MediaIoBaseDownload(f, request)
             done = False
             while not done:
                 status, done = downloader.next_chunk()
-                print(f"Download {int(status.progress() * 100)}%")
+                logger.info(f"Download {int(status.progress() * 100)}%")
         
         return True
     except Exception as e:
-        print(f"Error exporting document {doc_id}: {e}")
-        return False
-
-
-def export_gsheet_to_csv(service, sheet_id: str, output_path: str) -> bool:
-    """Export a Google Sheet to CSV format using Drive API."""
-    try:
-        request = service.files().export_media(
-            fileId=sheet_id, 
-            mimeType='text/csv'
-        )
-        
-        with open(output_path, 'wb') as f:
-            downloader = MediaIoBaseDownload(f, request)
-            done = False
-            while not done:
-                status, done = downloader.next_chunk()
-                print(f"Download {int(status.progress() * 100)}%")
-        
-        return True
-    except Exception as e:
-        print(f"Error exporting spreadsheet {sheet_id}: {e}")
+        logger.error(f"Error exporting file {file_id}: {e}")
         return False
 
 
@@ -300,8 +161,8 @@ def convert_docx_to_markdown(docx_path: str, md_path: str) -> bool:
         try:
             subprocess.run(['pandoc', '--version'], check=True, capture_output=True)
         except (subprocess.CalledProcessError, FileNotFoundError):
-            print("Error: Pandoc is not installed or not in PATH")
-            print("Please install Pandoc: https://pandoc.org/installing.html")
+            logger.error("Pandoc is not installed or not in PATH")
+            logger.error("Please install Pandoc: https://pandoc.org/installing.html")
             return False
         
         # Run pandoc to convert DOCX to Markdown
@@ -313,8 +174,8 @@ def convert_docx_to_markdown(docx_path: str, md_path: str) -> bool:
         
         return True
     except subprocess.CalledProcessError as e:
-        print(f"Error converting {docx_path} to Markdown: {e}")
-        print(f"Pandoc stderr: {e.stderr.decode()}")
+        logger.error(f"Error converting {docx_path} to Markdown: {e}")
+        logger.error(f"Pandoc stderr: {e.stderr.decode()}")
         return False
 
 
@@ -347,7 +208,7 @@ converted_on: "{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
         
         return True
     except Exception as e:
-        print(f"Error adding frontmatter to {md_path}: {e}")
+        logger.error(f"Error adding frontmatter to {md_path}: {e}")
         return False
 
 
@@ -355,7 +216,7 @@ def process_gdoc_file(service, file_path: str, keep_intermediates: bool = False,
     """Process a single Google Doc file and convert to Markdown."""
     gdoc_info = get_gdrive_info(file_path)
     if not gdoc_info or not gdoc_info['id'] or gdoc_info['type'] != "document":
-        print(f"Could not extract document ID from {file_path} or not a Google Doc")
+        logger.error(f"Could not extract document ID from {file_path} or not a Google Doc")
         return False
     
     doc_id = gdoc_info['id']
@@ -367,11 +228,11 @@ def process_gdoc_file(service, file_path: str, keep_intermediates: bool = False,
     # Place markdown file in the same directory as the .gdoc file
     md_filename = os.path.join(os.path.dirname(file_path), f"{safe_name}.md")
     
-    print(f"Processing Google Doc: {doc_name} (ID: {doc_id})")
-    print(f"Output file: {md_filename}")
+    logger.info(f"Processing Google Doc: {doc_name} (ID: {doc_id})")
+    logger.info(f"Output file: {md_filename}")
     
     if dry_run:
-        print(f"Would convert: {file_path} -> {md_filename}")
+        logger.info(f"Would convert: {file_path} -> {md_filename}")
         return True
     
     # Create intermediate directory if needed
@@ -385,7 +246,8 @@ def process_gdoc_file(service, file_path: str, keep_intermediates: bool = False,
     if keep_intermediates:
         # Export directly to the final docx location
         docx_path = final_docx_path
-        if not export_gdoc_to_docx(service, doc_id, docx_path):
+        docx_mime = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        if not export_file(service, doc_id, docx_mime, docx_path):
             return False
             
         # Convert DOCX to Markdown
@@ -397,7 +259,8 @@ def process_gdoc_file(service, file_path: str, keep_intermediates: bool = False,
         # Use temporary directory for DOCX export
         with tempfile.TemporaryDirectory() as temp_dir:
             docx_path = os.path.join(temp_dir, f"{safe_name}.docx")
-            if not export_gdoc_to_docx(service, doc_id, docx_path):
+            docx_mime = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+            if not export_file(service, doc_id, docx_mime, docx_path):
                 return False
             
             # Convert DOCX to Markdown
@@ -405,7 +268,7 @@ def process_gdoc_file(service, file_path: str, keep_intermediates: bool = False,
             if not success:
                 return False
     
-    print(f"Successfully converted to {md_filename}")
+    logger.info(f"Successfully converted to {md_filename}")
     
     # Add YAML frontmatter with metadata
     add_frontmatter_to_markdown(
@@ -415,9 +278,9 @@ def process_gdoc_file(service, file_path: str, keep_intermediates: bool = False,
         final_docx_path if keep_intermediates else None
     )
     
-    print(f"Added metadata frontmatter to {md_filename}")
+    logger.info(f"Added metadata frontmatter to {md_filename}")
     if keep_intermediates and final_docx_path:
-        print(f"Kept DOCX file: {final_docx_path}")
+        logger.info(f"Kept DOCX file: {final_docx_path}")
     
     return True
 
@@ -426,7 +289,7 @@ def process_gsheet_file(service, file_path: str, keep_intermediates: bool = Fals
     """Process a single Google Sheet file and export to CSV format."""
     gsheet_info = get_gdrive_info(file_path)
     if not gsheet_info or not gsheet_info['id'] or gsheet_info['type'] != "spreadsheet":
-        print(f"Could not extract spreadsheet ID from {file_path} or not a Google Sheet")
+        logger.error(f"Could not extract spreadsheet ID from {file_path} or not a Google Sheet")
         return False
     
     sheet_id = gsheet_info['id']
@@ -438,18 +301,18 @@ def process_gsheet_file(service, file_path: str, keep_intermediates: bool = Fals
     # Place CSV file in the same directory as the .gsheet file
     csv_filename = os.path.join(os.path.dirname(file_path), f"{safe_name}.csv")
     
-    print(f"Processing Google Sheet: {sheet_name} (ID: {sheet_id})")
-    print(f"Output file: {csv_filename}")
+    logger.info(f"Processing Google Sheet: {sheet_name} (ID: {sheet_id})")
+    logger.info(f"Output file: {csv_filename}")
     
     if dry_run:
-        print(f"Would convert: {file_path} -> {csv_filename}")
+        logger.info(f"Would convert: {file_path} -> {csv_filename}")
         return True
     
     # Export to CSV
-    if not export_gsheet_to_csv(service, sheet_id, csv_filename):
+    if not export_file(service, sheet_id, 'text/csv', csv_filename):
         return False
     
-    print(f"Successfully exported to {csv_filename}")
+    logger.info(f"Successfully exported to {csv_filename}")
     
     # Nothing additional needed for keep_intermediates as 
     # CSV is already the final output format
@@ -482,48 +345,48 @@ def main():
 
     # Validate directories
     if not os.path.isdir(source_dir):
-        print(f"Error: Source directory '{source_dir}' does not exist")
+        logger.error(f"Source directory '{source_dir}' does not exist")
         sys.exit(1)
 
     # Check if Pandoc is installed (only needed for gdoc conversion)
     if not args.gsheet_only:
         try:
             subprocess.run(['pandoc', '--version'], capture_output=True, check=True)
-            print("Pandoc is installed and working correctly")
+            logger.info("Pandoc is installed and working correctly")
         except (subprocess.CalledProcessError, FileNotFoundError):
-            print("Error: Pandoc is not installed or not in PATH")
-            print("Please install Pandoc: https://pandoc.org/installing.html")
+            logger.error("Pandoc is not installed or not in PATH")
+            logger.error("Please install Pandoc: https://pandoc.org/installing.html")
             sys.exit(1)
 
     # Authenticate with Google Drive API (skip if dry-run)
     service = None
     if not args.dry_run:
-        print("Authenticating with Google Drive API...")
+        logger.info("Authenticating with Google Drive API...")
         try:
             credentials = authenticate()
             service = build('drive', 'v3', credentials=credentials)
-            print("Authentication successful!")
+            logger.info("Authentication successful!")
         except Exception as e:
-            print(f"Authentication failed: {e}")
-            print("Please check your credentials.json file and try again.")
+            logger.error(f"Authentication failed: {e}")
+            logger.error("Please check your credentials.json file and try again.")
             sys.exit(1)
     else:
-        print("Dry run mode - skipping authentication with Google API")
+        logger.info("Dry run mode - skipping authentication with Google API")
 
     # Find all .gdoc and .gsheet files
-    print(f"Finding Google Drive files in {source_dir}...")
+    logger.info(f"Finding Google Drive files in {source_dir}...")
     gdrive_files = find_gdrive_files(source_dir, args.gdoc_only, args.gsheet_only)
 
     if not gdrive_files:
-        print("No Google Drive files found in the specified directory")
+        logger.warning("No Google Drive files found in the specified directory")
         sys.exit(0)
 
     # Apply limit if specified
     if args.limit and 0 < args.limit < len(gdrive_files):
-        print(f"Limiting to {args.limit} files (of {len(gdrive_files)} found)")
+        logger.info(f"Limiting to {args.limit} files (of {len(gdrive_files)} found)")
         gdrive_files = gdrive_files[:args.limit]
     else:
-        print(f"Found {len(gdrive_files)} Google Drive files")
+        logger.info(f"Found {len(gdrive_files)} Google Drive files")
 
     # Process each file
     success_count = 0
@@ -534,13 +397,13 @@ def main():
 
     for i, file_path in enumerate(gdrive_files, 1):
         file_type = "Google Doc" if file_path.endswith('.gdoc') else "Google Sheet"
-        print(f"\nProcessing file {i} of {len(gdrive_files)}: {os.path.basename(file_path)} ({file_type})")
+        logger.info(f"\nProcessing file {i} of {len(gdrive_files)}: {os.path.basename(file_path)} ({file_type})")
 
         try:
             # Get output path
             file_info = get_gdrive_info(file_path)
             if not file_info:
-                print(f"Could not extract info from {file_path}")
+                logger.error(f"Could not extract info from {file_path}")
                 error_count += 1
                 continue
 
@@ -551,7 +414,7 @@ def main():
 
             # Skip if file exists and --skip-existing is specified
             if args.skip_existing and os.path.exists(output_path):
-                print(f"Skipping {file_path} (output file already exists)")
+                logger.info(f"Skipping {file_path} (output file already exists)")
                 skip_count += 1
                 continue
 
@@ -572,31 +435,31 @@ def main():
                 error_count += 1
 
         except Exception as e:
-            print(f"Error processing {file_path}: {e}")
+            logger.error(f"Error processing {file_path}: {e}")
             error_count += 1
 
     # Print summary
-    print(f"\nConversion Summary:")
+    logger.info("\nConversion Summary:")
     if args.dry_run:
-        print(f"DRY RUN - No files were actually converted")
-    print(f"Total files found: {len(gdrive_files)}")
+        logger.info("DRY RUN - No files were actually converted")
+    logger.info(f"Total files found: {len(gdrive_files)}")
     if args.dry_run:
-        print(f"Would convert: {success_count}")
+        logger.info(f"Would convert: {success_count}")
     else:
-        print(f"Successfully converted: {success_count}")
-        print(f"  - Google Docs processed: {gdocs_processed}")
-        print(f"  - Google Sheets processed: {gsheets_processed}")
+        logger.info(f"Successfully converted: {success_count}")
+        logger.info(f"  - Google Docs processed: {gdocs_processed}")
+        logger.info(f"  - Google Sheets processed: {gsheets_processed}")
     if skip_count > 0:
-        print(f"Skipped (already exist): {skip_count}")
-    print(f"Failed: {error_count}")
+        logger.info(f"Skipped (already exist): {skip_count}")
+    logger.info(f"Failed: {error_count}")
 
     if success_count > 0 and not args.dry_run:
-        print(f"\nFiles have been saved next to their Google Drive counterparts")
+        logger.info("\nFiles have been saved next to their Google Drive counterparts")
         if args.keep_intermediates:
-            print(f"Intermediate files have been saved in 'intermediates/' subdirectories")
-        print("Done!")
+            logger.info("Intermediate files have been saved in 'intermediates/' subdirectories")
+        logger.info("Done!")
     elif args.dry_run:
-        print(f"\nTo perform the actual conversion, run the command without --dry-run")
+        logger.info("\nTo perform the actual conversion, run the command without --dry-run")
 
 
 if __name__ == "__main__":

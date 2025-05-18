@@ -7,10 +7,7 @@
     "gdoc-to-md": "./bin/gdoc-to-md.js"
   },
   "scripts": {
-    "postinstall": "pip install -r requirements.txt",
-    "test": "jest",
-    "lint": "eslint .",
-    "typecheck": "tsc --noEmit"
+    "postinstall": "pip install -r requirements.txt"
   },
   "keywords": [
     "google-drive",
@@ -27,12 +24,6 @@
   "dependencies": {
     "python-shell": "^5.0.0",
     "yargs": "^17.7.2"
-  },
-  "devDependencies": {
-    "@types/node": "^18.0.0",
-    "eslint": "^8.0.0",
-    "jest": "^29.0.0",
-    "typescript": "^5.0.0"
   },
   "engines": {
     "node": ">=14.0.0"

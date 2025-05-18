@@ -31,7 +31,7 @@ function runGDriveToMd(args = []) {
     });
     
     // End of script
-    pyshell.end((err, code, signal) => {
+    pyshell.end((err) => {
       if (err) {
         reject(err);
       } else {
