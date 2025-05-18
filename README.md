@@ -4,145 +4,114 @@ Convert Google Drive files to local formats:
 - 📝 Google Docs → Markdown (.md)
 - 📊 Google Sheets → CSV (.csv)
 
+## 🚀 Quick Start
+
+```bash
+npm install -g @goobits/gdoc-to-md
+gdoc-to-md /path/to/google/drive/files
+```
+
 ## ✨ Features
 
 - Converts files in-place (next to originals)
-- Preserves complete directory structure
-- Recursively processes all subdirectories
-- Adds YAML frontmatter with metadata to Markdown
-- Handles special characters in filenames
-- Provides detailed conversion reports
+- Preserves directory structure
+- Adds YAML frontmatter to Markdown
+- Handles special characters
+- Detailed conversion reports
 
-## ⚙️ Requirements
+## ⚙️ Prerequisites
 
-- Node.js >= 14.0.0
-- Python 3.x with pip
-- `credentials.json` (Google API OAuth credentials)
-- Pandoc (for DOCX → Markdown conversion)
+1. **Node.js** >= 14.0.0
+2. **Python 3** with pip
+3. **Pandoc** for Docs conversion
+4. **Google API credentials** (`credentials.json`)
 
 ## 🛠️ Setup
 
-### NPM Installation (Recommended)
+### 1. Install the Package
 
 ```bash
 npm install -g @goobits/gdoc-to-md
 ```
 
-This will automatically install Python dependencies during installation.
+### 2. Install Pandoc
 
-### Manual Installation
+```bash
+# macOS
+brew install pandoc
 
-1. **Clone Repository**:
-   ```bash
-   git clone https://github.com/mudcube/gdrive-to-md.git
-   cd gdrive-to-md
-   npm install
-   ```
+# Ubuntu/Debian
+sudo apt install pandoc
 
-2. **Install Pandoc**:
-   ```bash
-   # macOS
-   brew install pandoc
-   
-   # Ubuntu/Debian
-   sudo apt install pandoc
-   
-   # Windows
-   choco install pandoc
-   ```
+# Windows
+choco install pandoc
+```
 
-3. **Configure Google API**:
-   - Create project in [Google Cloud Console](https://console.cloud.google.com/)
-   - Enable Google Drive API
-   - Create OAuth client ID (Desktop app)
-   - Download credentials as `credentials.json`
-   - Place in your working directory
+### 3. Get Google API Credentials
+
+1. Go to [Google Cloud Console](https://console.cloud.google.com/)
+2. Enable Google Drive API
+3. Create OAuth client ID (Desktop app)
+4. Download as `credentials.json`
+5. Place in your working directory
 
 ## 📋 Usage
 
-### Basic Usage
+### Basic
 
 ```bash
-# If installed via npm
-gdoc-to-md /path/to/google/drive/files
-
-# If running locally
-npm run gdoc-to-md /path/to/google/drive/files
-
-# Or using Python directly
-python gdrive_to_md.py /path/to/google/drive/files
+gdoc-to-md /path/to/files
 ```
 
-On first run, the script will:
-1. Open browser for authentication
-2. Ask for Drive access permissions
-3. Store token for future use (`token.pickle`)
-
-### 🎛️ Options
+### Options
 
 ```bash
-# Process only Google Docs
-gdoc-to-md --gdoc-only /path/to/files
-
-# Process only Google Sheets  
-gdoc-to-md --gsheet-only /path/to/files
-
-# Skip already converted files
-gdoc-to-md --skip-existing /path/to/files
-
-# Keep intermediate DOCX files
-gdoc-to-md --keep-intermediates /path/to/files
-
-# Preview without converting (dry run)
-gdoc-to-md --dry-run /path/to/files
-
-# Process only first 5 files
-gdoc-to-md --limit 5 /path/to/files
+gdoc-to-md --gdoc-only         # Only Google Docs
+gdoc-to-md --gsheet-only       # Only Google Sheets
+gdoc-to-md --skip-existing     # Skip converted files
+gdoc-to-md --keep-intermediates # Keep DOCX files
+gdoc-to-md --dry-run           # Preview only
+gdoc-to-md --limit 5           # Process first 5 files
 ```
 
-## 📂 Output Format
+## 📂 Output
 
-### 📝 Google Docs (.gdoc)
-
-Converted to Markdown with YAML frontmatter:
+### Google Docs → Markdown
 
 ```yaml
 ---
 title: "Document Title"
 source_doc_id: "google_doc_id"
-source_url: "https://docs.google.com/document/d/doc_id/edit"
-converted_on: "YYYY-MM-DD HH:MM:SS"
+source_url: "https://docs.google.com/..."
+converted_on: "2024-01-15 10:30:00"
 ---
 
-Document content in Markdown...
+Your document content in Markdown...
 ```
 
-### 📊 Google Sheets (.gsheet)
+### Google Sheets → CSV
 
-Exported directly as CSV format, preserving data and structure.
+Direct CSV export preserving all data and structure.
 
-## 🔐 Security Notes
+## 🔐 Security
 
-- The script requests only read-only access to Google Drive
-- No content is sent to external servers
-- Authentication token stored locally as `token.pickle`
-- Access can be revoked anytime in Google Account settings
-- **IMPORTANT**: Never commit `credentials.json` or `token.pickle` to version control
-- The `.npmignore` file ensures credentials are not included when publishing to npm
+- Read-only Google Drive access
+- Local token storage (`token.pickle`)
+- Never commit `credentials.json`
+- Credentials excluded from npm package
 
-## 📦 Publishing to NPM
+## 🤝 Contributing
 
-This package (`@goobits/gdoc-to-md`) is configured to exclude all sensitive files:
-- `credentials.json` - Your Google API credentials
-- `token.pickle` - Your authentication token
-- Test files and development artifacts
+1. Fork the repository
+2. Create your feature branch
+3. Commit your changes
+4. Push to the branch
+5. Create a Pull Request
 
-Users will need to provide their own `credentials.json` file after installation.
+## 📄 License
 
-## Prerequisites
+MIT License - see [LICENSE](LICENSE) file
 
-Before installing this package, ensure you have:
-- Python 3.x with pip installed
-- Pandoc installed (for Google Docs conversion)
+---
 
-The package will attempt to install Python dependencies during npm installation.
+Made with ❤️ by [mudcube](https://github.com/mudcube)
