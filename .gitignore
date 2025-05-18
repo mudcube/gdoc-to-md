@@ -44,3 +44,7 @@ yarn-error.log*
 # IDE
 .vscode/
 .idea/
+
+# Test data
+test_input/
+test_data/
