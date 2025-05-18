@@ -57,7 +57,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 
-def authenticate() -> Credentials:
+def authenticate(credentials_path: str = 'credentials.json') -> Credentials:
     """Authenticate with Google Drive API using OAuth 2.0."""
     creds = None
     
@@ -71,13 +71,13 @@ def authenticate() -> Credentials:
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
         else:
-            if not os.path.exists('credentials.json'):
-                logger.error("credentials.json not found.")
+            if not os.path.exists(credentials_path):
+                logger.error(f"{credentials_path} not found.")
                 logger.error("Please download OAuth client credentials from Google Cloud Console")
-                logger.error("and save them as 'credentials.json' in the same directory as this script.")
+                logger.error(f"and save them as '{credentials_path}' or use --credentials-path flag.")
                 sys.exit(1)
                 
-            flow = InstalledAppFlow.from_client_secrets_file('credentials.json', SCOPES)
+            flow = InstalledAppFlow.from_client_secrets_file(credentials_path, SCOPES)
             creds = flow.run_local_server(port=0)
         
         # Save credentials for the next run
@@ -338,6 +338,8 @@ def main():
                        help='Process only Google Docs files')
     parser.add_argument('--gsheet-only', action='store_true',
                        help='Process only Google Sheets files')
+    parser.add_argument('--credentials-path', default='credentials.json',
+                       help='Path to Google API credentials JSON file (default: credentials.json)')
 
     args = parser.parse_args()
 
@@ -363,12 +365,12 @@ def main():
     if not args.dry_run:
         logger.info("Authenticating with Google Drive API...")
         try:
-            credentials = authenticate()
+            credentials = authenticate(args.credentials_path)
             service = build('drive', 'v3', credentials=credentials)
             logger.info("Authentication successful!")
         except Exception as e:
             logger.error(f"Authentication failed: {e}")
-            logger.error("Please check your credentials.json file and try again.")
+            logger.error(f"Please check your credentials file at {args.credentials_path} and try again.")
             sys.exit(1)
     else:
         logger.info("Dry run mode - skipping authentication with Google API")

@@ -53,7 +53,7 @@ choco install pandoc
 2. Enable Google Drive API
 3. Create OAuth client ID (Desktop app)
 4. Download as `credentials.json`
-5. Place in your working directory
+5. Place in your working directory (or use `--credentials-path` flag)
 
 ## 📋 Usage
 
@@ -72,6 +72,7 @@ gdoc-to-md --skip-existing     # Skip converted files
 gdoc-to-md --keep-intermediates # Keep DOCX files
 gdoc-to-md --dry-run           # Preview only
 gdoc-to-md --limit 5           # Process first 5 files
+gdoc-to-md --credentials-path ~/.config/gdoc/creds.json  # Custom credentials path
 ```
 
 ## 📂 Output

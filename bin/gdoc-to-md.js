@@ -40,6 +40,11 @@ const argv = yargs(hideBin(process.argv))
     describe: 'Limit the number of files to process',
     type: 'number'
   })
+  .option('credentials-path', {
+    describe: 'Path to Google API credentials JSON file',
+    type: 'string',
+    default: 'credentials.json'
+  })
   .demandCommand(1, 'Please provide a source directory')
   .help()
   .argv;
@@ -53,6 +58,7 @@ if (argv.skipExisting) args.push('--skip-existing');
 if (argv.keepIntermediates) args.push('--keep-intermediates');
 if (argv.dryRun) args.push('--dry-run');
 if (argv.limit) args.push('--limit', argv.limit.toString());
+if (argv.credentialsPath !== 'credentials.json') args.push('--credentials-path', argv.credentialsPath);
 
 // Run the Python script
 runGDriveToMd(args)
