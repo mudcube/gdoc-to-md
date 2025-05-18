@@ -53,7 +53,10 @@ choco install pandoc
 2. Enable Google Drive API
 3. Create OAuth client ID (Desktop app)
 4. Download as `credentials.json`
-5. Place in your working directory (or use `--credentials-path` flag)
+5. Use one of these methods:
+   - Place in your working directory
+   - Use `--credentials-path` flag
+   - Use `--client-id` and `--client-secret` flags
 
 ## 📋 Usage
 
