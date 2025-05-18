@@ -8,8 +8,6 @@ const path = require('path');
  */
 function runGDriveToMd(args = []) {
   return new Promise((resolve, reject) => {
-    const scriptPath = path.join(__dirname, 'gdrive_to_md.py');
-    
     const options = {
       mode: 'text',
       pythonPath: 'python3',
@@ -18,7 +16,7 @@ function runGDriveToMd(args = []) {
       args: args
     };
 
-    const pyshell = new PythonShell(scriptPath, options);
+    const pyshell = new PythonShell('gdrive_to_md.py', options);
     
     // Handle output from Python script
     pyshell.on('message', (message) => {
