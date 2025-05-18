@@ -63,6 +63,19 @@ choco install pandoc
 gdoc-to-md /path/to/files
 ```
 
+### Credentials Options
+
+```bash
+# Default: looks for credentials.json in current directory
+gdoc-to-md /path/to/files
+
+# Custom file path
+gdoc-to-md /path/to/files --credentials-path ~/.config/gdoc/creds.json
+
+# Inline credentials (no file needed!)
+gdoc-to-md /path/to/files --client-id YOUR_CLIENT_ID --client-secret YOUR_CLIENT_SECRET
+```
+
 ### Options
 
 ```bash
@@ -73,6 +86,7 @@ gdoc-to-md --keep-intermediates # Keep DOCX files
 gdoc-to-md --dry-run           # Preview only
 gdoc-to-md --limit 5           # Process first 5 files
 gdoc-to-md --credentials-path ~/.config/gdoc/creds.json  # Custom credentials path
+gdoc-to-md --client-id YOUR_ID --client-secret YOUR_SECRET  # Inline credentials
 ```
 
 ## 📂 Output

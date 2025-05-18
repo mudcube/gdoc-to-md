@@ -45,6 +45,14 @@ const argv = yargs(hideBin(process.argv))
     type: 'string',
     default: 'credentials.json'
   })
+  .option('client-id', {
+    describe: 'OAuth client ID (alternative to credentials file)',
+    type: 'string'
+  })
+  .option('client-secret', {
+    describe: 'OAuth client secret (alternative to credentials file)',
+    type: 'string'
+  })
   .demandCommand(1, 'Please provide a source directory')
   .help()
   .argv;
@@ -59,6 +67,8 @@ if (argv.keepIntermediates) args.push('--keep-intermediates');
 if (argv.dryRun) args.push('--dry-run');
 if (argv.limit) args.push('--limit', argv.limit.toString());
 if (argv.credentialsPath !== 'credentials.json') args.push('--credentials-path', argv.credentialsPath);
+if (argv.clientId) args.push('--client-id', argv.clientId);
+if (argv.clientSecret) args.push('--client-secret', argv.clientSecret);
 
 // Run the Python script
 runGDriveToMd(args)
