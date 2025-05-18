@@ -7,7 +7,7 @@
     "gdoc-to-md": "./bin/gdoc-to-md.js"
   },
   "scripts": {
-    "postinstall": "pip install -r requirements.txt"
+    "postinstall": "node postinstall.js"
   },
   "keywords": [
     "google-drive",
@@ -32,11 +32,16 @@
     "type": "git",
     "url": "https://github.com/mudcube/gdrive-to-md"
   },
+  "bugs": {
+    "url": "https://github.com/mudcube/gdrive-to-md/issues"
+  },
+  "homepage": "https://github.com/mudcube/gdrive-to-md#readme",
   "files": [
     "index.js",
     "bin/",
     "gdrive_to_md.py",
     "requirements.txt",
+    "postinstall.js",
     "README.md",
     "LICENSE"
   ]

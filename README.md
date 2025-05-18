@@ -138,3 +138,11 @@ This package (`@goobits/gdoc-to-md`) is configured to exclude all sensitive file
 - Test files and development artifacts
 
 Users will need to provide their own `credentials.json` file after installation.
+
+## Prerequisites
+
+Before installing this package, ensure you have:
+- Python 3.x with pip installed
+- Pandoc installed (for Google Docs conversion)
+
+The package will attempt to install Python dependencies during npm installation.
