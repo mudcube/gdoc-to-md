@@ -35,43 +35,100 @@ import sys
 import json
 import tempfile
 import subprocess
-import pickle
 import datetime
 import re
 import logging
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
 
-# Google API libraries
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
 
-# OAuth 2.0 scopes
 SCOPES = ['https://www.googleapis.com/auth/drive.readonly']
 
-# Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+TOKEN_FILE = 'token.json'
+
+
+def save_credentials_secure(creds: Credentials) -> None:
+    """Securely save credentials to JSON file."""
+    try:
+        token_data = {
+            'token': creds.token,
+            'refresh_token': creds.refresh_token,
+            'token_uri': creds.token_uri,
+            'client_id': creds.client_id,
+            'client_secret': creds.client_secret,
+            'scopes': creds.scopes
+        }
+        
+        if hasattr(creds, 'expiry') and creds.expiry:
+            token_data['expiry'] = creds.expiry.isoformat()
+        
+        with open(TOKEN_FILE, 'w') as f:
+            json.dump(token_data, f, indent=2)
+        
+        os.chmod(TOKEN_FILE, 0o600)
+        
+    except Exception as e:
+        logger.error(f"Error saving credentials: {e}")
+        raise
+
+
+def load_credentials_secure() -> Optional[Credentials]:
+    """Securely load credentials from JSON file."""
+    try:
+        if not os.path.exists(TOKEN_FILE):
+            return None
+            
+        file_stat = os.stat(TOKEN_FILE)
+        if file_stat.st_mode & 0o077:
+            logger.warning(f"{TOKEN_FILE} has overly permissive permissions. Fixing...")
+            os.chmod(TOKEN_FILE, 0o600)
+            
+        with open(TOKEN_FILE, 'r') as f:
+            token_data = json.load(f)
+        
+        expiry = None
+        if 'expiry' in token_data:
+            from datetime import datetime
+            expiry = datetime.fromisoformat(token_data['expiry'])
+        
+        creds = Credentials(
+            token=token_data['token'],
+            refresh_token=token_data.get('refresh_token'),
+            token_uri=token_data.get('token_uri'),
+            client_id=token_data.get('client_id'),
+            client_secret=token_data.get('client_secret'),
+            scopes=token_data.get('scopes')
+        )
+        
+        if expiry:
+            creds.expiry = expiry
+            
+        return creds
+        
+    except (FileNotFoundError, json.JSONDecodeError, KeyError) as e:
+        logger.debug(f"Could not load credentials: {e}")
+        return None
+    except Exception as e:
+        logger.error(f"Error loading credentials: {e}")
+        return None
 
 
 def authenticate(credentials_path: str = 'credentials.json', client_id: str = None, client_secret: str = None) -> Credentials:
     """Authenticate with Google Drive API using OAuth 2.0."""
-    creds = None
+    creds = load_credentials_secure()
     
-    # Check if token.pickle exists with saved credentials
-    if os.path.exists('token.pickle'):
-        with open('token.pickle', 'rb') as token:
-            creds = pickle.load(token)
-    
-    # If credentials don't exist or are invalid, authenticate
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
         else:
-            # If client_id and client_secret are provided, create credentials in memory
             if client_id and client_secret:
                 client_config = {
                     "installed": {
@@ -98,9 +155,7 @@ def authenticate(credentials_path: str = 'credentials.json', client_id: str = No
                 flow = InstalledAppFlow.from_client_secrets_file(credentials_path, SCOPES)
             creds = flow.run_local_server(port=0)
         
-        # Save credentials for the next run
-        with open('token.pickle', 'wb') as token:
-            pickle.dump(creds, token)
+        save_credentials_secure(creds)
             
     return creds
 
@@ -120,12 +175,10 @@ def get_gdrive_info(file_path: str) -> Optional[Dict]:
         with open(file_path, 'r') as f:
             data = json.load(f)
             
-        # Get document ID - Google Drive files should have doc_id or resourceid
         doc_id = data.get('doc_id') or data.get('resourceid')
         if not doc_id:
             return None
             
-        # Determine file type based on extension
         file_ext = Path(file_path).suffix
         file_type = "document" if file_ext == '.gdoc' else "spreadsheet"
         
@@ -175,7 +228,6 @@ def export_file(service, file_id: str, mime_type: str, output_path: str) -> bool
 def convert_docx_to_markdown(docx_path: str, md_path: str) -> bool:
     """Convert DOCX file to Markdown using Pandoc."""
     try:
-        # Check if pandoc is installed
         try:
             subprocess.run(['pandoc', '--version'], check=True, capture_output=True)
         except (subprocess.CalledProcessError, FileNotFoundError):
@@ -183,7 +235,6 @@ def convert_docx_to_markdown(docx_path: str, md_path: str) -> bool:
             logger.error("Please install Pandoc: https://pandoc.org/installing.html")
             return False
         
-        # Run pandoc to convert DOCX to Markdown
         result = subprocess.run(
             ['pandoc', docx_path, '-f', 'docx', '-t', 'markdown', '-o', md_path],
             check=True,
@@ -197,9 +248,51 @@ def convert_docx_to_markdown(docx_path: str, md_path: str) -> bool:
         return False
 
 
+def secure_path_join(base_dir: str, *paths) -> str:
+    """Safely join paths ensuring result is within base directory."""
+    base_path = os.path.abspath(base_dir)
+    
+    target_path = os.path.abspath(os.path.join(base_path, *paths))
+    
+    if not target_path.startswith(base_path + os.sep) and target_path != base_path:
+        raise ValueError(f"Path traversal attempt detected: {target_path} is outside {base_path}")
+    
+    return target_path
+
+
+def validate_source_path(file_path: str, allowed_extensions: List[str] = ['.gdoc', '.gsheet']) -> bool:
+    """Validate file path is safe to process."""
+    abs_path = os.path.abspath(file_path)
+    
+    if not any(abs_path.endswith(ext) for ext in allowed_extensions):
+        logger.error(f"Invalid file extension: {file_path}")
+        return False
+    
+    if not os.path.isfile(abs_path):
+        logger.error(f"File not found: {file_path}")
+        return False
+        
+    if not os.access(abs_path, os.R_OK):
+        logger.error(f"File not readable: {file_path}")
+        return False
+    
+    return True
+
+
 def sanitize_filename(filename: str) -> str:
     """Create a sanitized filename (remove invalid chars)."""
-    return ''.join(c for c in filename if c.isalnum() or c in '._- ')
+    filename = os.path.basename(filename)
+    
+    filename = re.sub(r'[<>:"/\\|?*]', '_', filename)
+    
+    filename = ''.join(c for c in filename if c.isprintable())
+    
+    max_length = 255
+    if len(filename) > max_length:
+        name, ext = os.path.splitext(filename)
+        filename = name[:max_length - len(ext)] + ext
+    
+    return filename
 
 
 def add_frontmatter_to_markdown(md_path: str, doc_name: str, doc_id: str, docx_path: str = None) -> bool:
@@ -232,6 +325,9 @@ converted_on: "{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
 
 def process_gdoc_file(service, file_path: str, keep_intermediates: bool = False, dry_run: bool = False) -> bool:
     """Process a single Google Doc file and convert to Markdown."""
+    if not validate_source_path(file_path, ['.gdoc']):
+        return False
+    
     gdoc_info = get_gdrive_info(file_path)
     if not gdoc_info or not gdoc_info['id'] or gdoc_info['type'] != "document":
         logger.error(f"Could not extract document ID from {file_path} or not a Google Doc")
@@ -240,11 +336,10 @@ def process_gdoc_file(service, file_path: str, keep_intermediates: bool = False,
     doc_id = gdoc_info['id']
     doc_name = gdoc_info['name']
     
-    # Create sanitized filename
     safe_name = sanitize_filename(doc_name)
     
-    # Place markdown file in the same directory as the .gdoc file
-    md_filename = os.path.join(os.path.dirname(file_path), f"{safe_name}.md")
+    source_dir = os.path.dirname(os.path.abspath(file_path))
+    md_filename = secure_path_join(source_dir, f"{safe_name}.md")
     
     logger.info(f"Processing Google Doc: {doc_name} (ID: {doc_id})")
     logger.info(f"Output file: {md_filename}")
@@ -253,42 +348,35 @@ def process_gdoc_file(service, file_path: str, keep_intermediates: bool = False,
         logger.info(f"Would convert: {file_path} -> {md_filename}")
         return True
     
-    # Create intermediate directory if needed
     final_docx_path = None
     if keep_intermediates:
-        intermediates_dir = os.path.join(os.path.dirname(file_path), 'intermediates')
+        intermediates_dir = secure_path_join(source_dir, 'intermediates')
         os.makedirs(intermediates_dir, exist_ok=True)
-        final_docx_path = os.path.join(intermediates_dir, f"{safe_name}.docx")
+        final_docx_path = secure_path_join(intermediates_dir, f"{safe_name}.docx")
     
-    # Export and convert
     if keep_intermediates:
-        # Export directly to the final docx location
         docx_path = final_docx_path
         docx_mime = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
         if not export_file(service, doc_id, docx_mime, docx_path):
             return False
             
-        # Convert DOCX to Markdown
         success = convert_docx_to_markdown(docx_path, md_filename)
         if not success:
             return False
             
     else:
-        # Use temporary directory for DOCX export
         with tempfile.TemporaryDirectory() as temp_dir:
-            docx_path = os.path.join(temp_dir, f"{safe_name}.docx")
+            docx_path = secure_path_join(temp_dir, f"{safe_name}.docx")
             docx_mime = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
             if not export_file(service, doc_id, docx_mime, docx_path):
                 return False
             
-            # Convert DOCX to Markdown
             success = convert_docx_to_markdown(docx_path, md_filename)
             if not success:
                 return False
     
     logger.info(f"Successfully converted to {md_filename}")
     
-    # Add YAML frontmatter with metadata
     add_frontmatter_to_markdown(
         md_filename, 
         doc_name, 
@@ -305,6 +393,9 @@ def process_gdoc_file(service, file_path: str, keep_intermediates: bool = False,
 
 def process_gsheet_file(service, file_path: str, keep_intermediates: bool = False, dry_run: bool = False) -> bool:
     """Process a single Google Sheet file and export to CSV format."""
+    if not validate_source_path(file_path, ['.gsheet']):
+        return False
+    
     gsheet_info = get_gdrive_info(file_path)
     if not gsheet_info or not gsheet_info['id'] or gsheet_info['type'] != "spreadsheet":
         logger.error(f"Could not extract spreadsheet ID from {file_path} or not a Google Sheet")
@@ -313,11 +404,10 @@ def process_gsheet_file(service, file_path: str, keep_intermediates: bool = Fals
     sheet_id = gsheet_info['id']
     sheet_name = gsheet_info['name']
     
-    # Create sanitized filename
     safe_name = sanitize_filename(sheet_name)
     
-    # Place CSV file in the same directory as the .gsheet file
-    csv_filename = os.path.join(os.path.dirname(file_path), f"{safe_name}.csv")
+    source_dir = os.path.dirname(os.path.abspath(file_path))
+    csv_filename = secure_path_join(source_dir, f"{safe_name}.csv")
     
     logger.info(f"Processing Google Sheet: {sheet_name} (ID: {sheet_id})")
     logger.info(f"Output file: {csv_filename}")
@@ -326,23 +416,17 @@ def process_gsheet_file(service, file_path: str, keep_intermediates: bool = Fals
         logger.info(f"Would convert: {file_path} -> {csv_filename}")
         return True
     
-    # Export to CSV
     if not export_file(service, sheet_id, 'text/csv', csv_filename):
         return False
     
     logger.info(f"Successfully exported to {csv_filename}")
     
-    # Nothing additional needed for keep_intermediates as 
-    # CSV is already the final output format
-    
     return True
 
 
 def main():
-    """Main function to run the Google Drive to Markdown/CSV migration."""
     import argparse
 
-    # Parse command-line arguments
     parser = argparse.ArgumentParser(description='Convert Google Drive documents to Markdown and CSV')
     parser.add_argument('source_dir', help='Directory containing .gdoc and .gsheet files (will be searched recursively)')
     parser.add_argument('--limit', type=int, help='Limit the number of files to process')
@@ -367,12 +451,10 @@ def main():
 
     source_dir = args.source_dir
 
-    # Validate directories
     if not os.path.isdir(source_dir):
         logger.error(f"Source directory '{source_dir}' does not exist")
         sys.exit(1)
 
-    # Check if Pandoc is installed (only needed for gdoc conversion)
     if not args.gsheet_only:
         try:
             subprocess.run(['pandoc', '--version'], capture_output=True, check=True)
@@ -382,7 +464,6 @@ def main():
             logger.error("Please install Pandoc: https://pandoc.org/installing.html")
             sys.exit(1)
 
-    # Authenticate with Google Drive API (skip if dry-run)
     service = None
     if not args.dry_run:
         logger.info("Authenticating with Google Drive API...")
@@ -397,7 +478,6 @@ def main():
     else:
         logger.info("Dry run mode - skipping authentication with Google API")
 
-    # Find all .gdoc and .gsheet files
     logger.info(f"Finding Google Drive files in {source_dir}...")
     gdrive_files = find_gdrive_files(source_dir, args.gdoc_only, args.gsheet_only)
 
@@ -405,14 +485,12 @@ def main():
         logger.warning("No Google Drive files found in the specified directory")
         sys.exit(0)
 
-    # Apply limit if specified
     if args.limit and 0 < args.limit < len(gdrive_files):
         logger.info(f"Limiting to {args.limit} files (of {len(gdrive_files)} found)")
         gdrive_files = gdrive_files[:args.limit]
     else:
         logger.info(f"Found {len(gdrive_files)} Google Drive files")
 
-    # Process each file
     success_count = 0
     skip_count = 0
     error_count = 0
@@ -424,25 +502,21 @@ def main():
         logger.info(f"\nProcessing file {i} of {len(gdrive_files)}: {os.path.basename(file_path)} ({file_type})")
 
         try:
-            # Get output path
             file_info = get_gdrive_info(file_path)
             if not file_info:
                 logger.error(f"Could not extract info from {file_path}")
                 error_count += 1
                 continue
 
-            # Determine output file path
             output_ext = ".md" if file_path.endswith('.gdoc') else ".csv"
             safe_name = sanitize_filename(file_info['name'])
             output_path = os.path.join(os.path.dirname(file_path), f"{safe_name}{output_ext}")
 
-            # Skip if file exists and --skip-existing is specified
             if args.skip_existing and os.path.exists(output_path):
                 logger.info(f"Skipping {file_path} (output file already exists)")
                 skip_count += 1
                 continue
 
-            # Process the file based on its type
             success = False
             if file_path.endswith('.gdoc'):
                 success = process_gdoc_file(service, file_path, args.keep_intermediates, args.dry_run)
@@ -462,7 +536,6 @@ def main():
             logger.error(f"Error processing {file_path}: {e}")
             error_count += 1
 
-    # Print summary
     logger.info("\nConversion Summary:")
     if args.dry_run:
         logger.info("DRY RUN - No files were actually converted")

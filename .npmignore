@@ -1,6 +1,7 @@
 # Google API credentials - NEVER publish these!
 credentials.json
 token.pickle
+token.json
 
 # Test files
 test_input/
